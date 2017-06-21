@@ -1,0 +1,15 @@
+groups:
+
+  minion_group:
+    members:
+      - minion_host
+      - minion_host_nic
+      - minion_host_nic_ip_cfg
+
+policies:
+
+  minion_scaling_policy:
+    type: cloudify.policies.scaling
+    properties:
+      default_instances:  2
+    targets: [minion_group]

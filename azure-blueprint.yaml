@@ -1,0 +1,381 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+description: >
+  This blueprint creates a Salt Master and Salt Minion on Centos 7 VMs in a Cloudify Management Environment.
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.0.1/types.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-azure-plugin/1.4.3/plugin.yaml
+  - imports/salt.yaml
+  - imports/groups-policies-azure.yaml
+
+inputs:
+
+  resource_prefix:
+    default: k8s
+
+  resource_suffix:
+    default: '0'
+
+  retry_after:
+    type: integer
+    default: 60
+
+  size:
+    default: Standard_A3
+
+  image:
+    default:
+      publisher: OpenLogic
+      offer: CentOS
+      sku: '7.3'
+      version: latest
+
+  agent_user:
+    description: The user name of the agent on the instance created from the image.
+    default: centos # currently this is required
+
+  ssh_public_keys:
+    description: the public key
+    default:
+    - path: {concat:[ '/home/', { get_input: agent_user }, '/.ssh/authorized_keys' ]}
+      keyData: { get_secret: agent_key_public }
+
+dsl_definitions:
+
+  azure_config: &azure_config
+    subscription_id: { get_secret: subscription_id }
+    tenant_id: { get_secret: tenant_id }
+    client_id: { get_secret: client_id }
+    client_secret: { get_secret: client_secret }
+
+node_templates:
+
+  salt_master_custom_script:
+    type: cloudify.azure.nodes.compute.VirtualMachineExtension
+    properties:
+      location: { get_secret: location }
+      retry_after: { get_input: retry_after }
+      azure_config: *azure_config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            resource_config:
+              publisher: Microsoft.Azure.Extensions
+              type: CustomScript
+              typeHandlerVersion: '2.0'
+              autoUpgradeMinorVersion: true
+              settings:
+                commandToExecute:
+                  concat:
+                    - |
+                      cat <<EOF > /etc/yum.repos.d/saltstack.repo
+                      [saltstack-repo]
+                      name=SaltStack repo for Red Hat Enterprise Linux 7.3
+                      baseurl=https://repo.saltstack.com/yum/redhat/7.3/x86_64/latest
+                      enabled=1
+                      gpgcheck=1
+                      gpgkey=https://repo.saltstack.com/yum/redhat/7.3/x86_64/latest/SALTSTACK-GPG-KEY.pub
+                             https://repo.saltstack.com/yum/redhat/7.3/x86_64/latest/base/RPM-GPG-KEY-CentOS-7
+                      EOF
+                      setenforce 0
+                    - |
+                      yum -t -y install salt-master salt-minion salt-ssh salt-syndic salt-cloud
+                      systemctl enable salt-master.service
+                      systemctl start salt-master.service
+    relationships:
+    - type: cloudify.azure.relationships.vmx_contained_in_vm
+      target: master_host
+
+  salt_minion_custom_script:
+    type: cloudify.azure.nodes.compute.VirtualMachineExtension
+    properties:
+      location: { get_secret: location }
+      retry_after: { get_input: retry_after }
+      azure_config: *azure_config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            resource_config:
+              publisher: Microsoft.Azure.Extensions
+              type: CustomScript
+              typeHandlerVersion: '2.0'
+              autoUpgradeMinorVersion: true
+              settings:
+                commandToExecute:
+                  concat:
+                    - |
+                      cat <<EOF > /etc/yum.repos.d/saltstack.repo
+                      [saltstack-repo]
+                      name=SaltStack repo for Red Hat Enterprise Linux 7.3
+                      baseurl=https://repo.saltstack.com/yum/redhat/7.3/x86_64/latest
+                      enabled=1
+                      gpgcheck=1
+                      gpgkey=https://repo.saltstack.com/yum/redhat/7.3/x86_64/latest/SALTSTACK-GPG-KEY.pub
+                             https://repo.saltstack.com/yum/redhat/7.3/x86_64/latest/base/RPM-GPG-KEY-CentOS-7
+                      EOF
+                      setenforce 0
+                    - |
+                      yum -t -y install salt-master salt-minion salt-ssh salt-syndic salt-cloud
+                      systemctl enable salt-minion.service
+                      systemctl start salt-minion.service
+    relationships:
+    - type: cloudify.azure.relationships.vmx_contained_in_vm
+      target: minion_host
+
+  master_host:
+    type: cloudify.azure.nodes.compute.VirtualMachine
+    properties:
+      location: { get_secret: location }
+      retry_after: { get_input: retry_after }
+      os_family: linux
+      azure_config: *azure_config
+      resource_config:
+        hardwareProfile: {}
+        storageProfile: {}
+        osProfile: {}
+      agent_config:
+        user: { get_input: agent_user }
+        install_method: remote
+        port: 22
+        key: { get_secret: agent_key_private }
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+    - type: cloudify.azure.relationships.connected_to_storage_account
+      target: storage_account
+    - type: cloudify.azure.relationships.connected_to_availability_set
+      target: availability_set
+    - type: cloudify.azure.relationships.connected_to_nic
+      target: master_host_nic
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: pkg.cloudify_azure.resources.compute.virtualmachine.create
+          inputs:
+            args:
+              hardwareProfile:
+                vmSize: { get_input: size }
+              storageProfile:
+                imageReference: { get_input: image}
+              osProfile:
+                adminUsername: { get_input: agent_user }
+                adminPassword: ''
+                # customData: { get_attribute: [ cloudify_host_cloud_config, cloud_config ] }
+                linuxConfiguration:
+                  ssh:
+                    publicKeys: { get_input: ssh_public_keys }
+                  disablePasswordAuthentication: true
+
+  minion_host:
+    type: cloudify.azure.nodes.compute.VirtualMachine
+    properties:
+      location: { get_secret: location }
+      retry_after: { get_input: retry_after }
+      os_family: linux
+      azure_config: *azure_config
+      resource_config:
+        hardwareProfile: {}
+        storageProfile: {}
+        osProfile: {}
+      agent_config:
+        user: { get_input: agent_user }
+        install_method: remote
+        port: 22
+        key: { get_secret: agent_key_private }
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+    - type: cloudify.azure.relationships.connected_to_storage_account
+      target: storage_account
+    - type: cloudify.azure.relationships.connected_to_availability_set
+      target: availability_set
+    - type: cloudify.azure.relationships.connected_to_nic
+      target: minion_host_nic
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: pkg.cloudify_azure.resources.compute.virtualmachine.create
+          inputs:
+            args:
+              hardwareProfile:
+                vmSize: { get_input: size }
+              storageProfile:
+                imageReference: { get_input: image}
+              osProfile:
+                adminUsername: { get_input: agent_user }
+                adminPassword: ''
+                linuxConfiguration:
+                  ssh:
+                    publicKeys: { get_input: ssh_public_keys }
+                  disablePasswordAuthentication: true
+
+  security_group:
+    type: cloudify.azure.nodes.network.NetworkSecurityGroup
+    properties:
+      name: {concat:[{get_input: resource_prefix},nsg,{get_input: resource_suffix}]}
+      location: { get_secret: location }
+      azure_config: *azure_config
+      retry_after: { get_input: retry_after }
+      resource_config:
+        securityRules:
+        - name: {concat:[{get_input: resource_prefix},nsg,{get_input: resource_suffix},ssh]}
+          properties:
+            description: SSH access
+            protocol: Tcp
+            sourcePortRange: '*'
+            destinationPortRange: 22
+            sourceAddressPrefix: '*'
+            destinationAddressPrefix: '*'
+            priority: 102
+            access: Allow
+            direction: Inbound
+        - name: {concat:[{get_input: resource_prefix},nsg,{get_input: resource_suffix},tcp4505]}
+          properties:
+            description: 4505 TCP access
+            protocol: Tcp
+            sourcePortRange: '*'
+            destinationPortRange: 4505
+            sourceAddressPrefix: '*'
+            destinationAddressPrefix: '*'
+            priority: 104
+            access: Allow
+            direction: Inbound
+        - name: {concat:[{get_input: resource_prefix},nsg,{get_input: resource_suffix},tcp4506]}
+          properties:
+            description: 4506 access
+            protocol: Tcp
+            sourcePortRange: '*'
+            destinationPortRange: 4506
+            sourceAddressPrefix: '*'
+            destinationAddressPrefix: '*'
+            priority: 105
+            access: Allow
+            direction: Inbound
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+
+  availability_set:
+    type: cloudify.azure.nodes.compute.AvailabilitySet
+    properties:
+      name: {concat:[{get_input: resource_prefix},availset,{get_input: resource_suffix}]}
+      location: { get_secret: location }
+      azure_config: *azure_config
+      retry_after: { get_input: retry_after }
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+
+  minion_host_nic:
+    type: cloudify.azure.nodes.network.NetworkInterfaceCard
+    properties:
+      location: { get_secret: location }
+      azure_config: *azure_config
+      retry_after: { get_input: retry_after }
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+    - type: cloudify.azure.relationships.nic_connected_to_network_security_group
+      target: security_group
+    - type: cloudify.azure.relationships.nic_connected_to_ip_configuration
+      target: minion_host_nic_ip_cfg
+
+  master_host_nic:
+    type: cloudify.azure.nodes.network.NetworkInterfaceCard
+    properties:
+      location: { get_secret: location }
+      azure_config: *azure_config
+      retry_after: { get_input: retry_after }
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+    - type: cloudify.azure.relationships.nic_connected_to_network_security_group
+      target: security_group
+    - type: cloudify.azure.relationships.nic_connected_to_ip_configuration
+      target: master_host_nic_ip_cfg
+
+  minion_host_nic_ip_cfg:
+    type: cloudify.azure.nodes.network.IPConfiguration
+    properties:
+      location: { get_secret: location }
+      azure_config: *azure_config
+      retry_after: { get_input: retry_after }
+      resource_config:
+        privateIPAllocationMethod: Dynamic
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+    - type: cloudify.azure.relationships.ip_configuration_connected_to_subnet
+      target: subnet
+
+  master_host_nic_ip_cfg:
+    type: cloudify.azure.nodes.network.IPConfiguration
+    properties:
+      location: { get_secret: location }
+      azure_config: *azure_config
+      retry_after: { get_input: retry_after }
+      resource_config:
+        privateIPAllocationMethod: Dynamic
+    relationships:
+    - type: cloudify.azure.relationships.ip_configuration_connected_to_subnet
+      target: subnet
+    - type: cloudify.azure.relationships.ip_configuration_connected_to_public_ip
+      target: public_ip
+
+  public_ip:
+    type: cloudify.azure.nodes.network.PublicIPAddress
+    properties:
+      location: { get_secret: location }
+      azure_config: *azure_config
+      retry_after: { get_input: retry_after }
+      resource_config:
+        publicIPAllocationMethod: Static
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+
+  subnet:
+    type: cloudify.azure.nodes.network.Subnet
+    properties:
+      resource_group_name: { get_secret: mgr_resource_group_name }
+      name: { get_secret: mgr_subnet_name }
+      azure_config: *azure_config
+      use_external_resource: true
+      location: { get_secret: location }
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_virtual_network
+      target: virtual_network
+
+  virtual_network:
+    type: cloudify.azure.nodes.network.VirtualNetwork
+    properties:
+      resource_group_name: { get_secret: mgr_resource_group_name }
+      name: { get_secret: mgr_virtual_network_name }
+      azure_config: *azure_config
+      use_external_resource: true
+      location: { get_secret: location }
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+
+  storage_account:
+    type: cloudify.azure.nodes.storage.StorageAccount
+    properties:
+      location: { get_secret: location }
+      azure_config: *azure_config
+      retry_after: { get_input: retry_after }
+      resource_config:
+        accountType: Standard_LRS
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+
+  resource_group:
+    type: cloudify.azure.nodes.ResourceGroup
+    properties:
+      name: {concat:[{get_input: resource_prefix},arg,{get_input: resource_suffix}]}
+      location: { get_secret: location }
+      azure_config: *azure_config

@@ -1,0 +1,66 @@
+node_types:
+
+  cloudify.nodes.CloudConfig:
+    derived_from: cloudify.nodes.Root
+    properties:
+      resource_config:
+        default:
+          encode_base64: false
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: scripts/cloud_config/create.py
+          executor: central_deployment_agent
+
+node_templates:
+
+  master_cloud_config:
+    type: cloudify.nodes.CloudConfig
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            cloud_config:
+              users: &cloud_config_users
+                - name: { get_input: agent_user }
+                  primary-group: wheel
+                  shell: /bin/bash
+                  sudo: ['ALL=(ALL) NOPASSWD:ALL']
+                  ssh-authorized-keys:
+                    - { get_secret: agent_key_public }
+              write_files: &cloud_config_repo
+                - path: /etc/yum.repos.d/saltstack.repo
+                  owner: root:root
+                  permissions: '0444'
+                  content: |
+                    # installed by cloud-init
+                    [saltstack-repo]
+                    name=SaltStack repo for Red Hat Enterprise Linux $releasever
+                    baseurl=https://repo.saltstack.com/yum/redhat/$releasever/$basearch/latest
+                    enabled=1
+                    gpgcheck=1
+                    gpgkey=https://repo.saltstack.com/yum/redhat/$releasever/$basearch/latest/SALTSTACK-GPG-KEY.pub
+                           https://repo.saltstack.com/yum/redhat/$releasever/$basearch/latest/base/RPM-GPG-KEY-CentOS-7
+              packages: &cloud_config_packages
+                - salt-master
+                - salt-minion
+                - salt-ssh
+                - salt-syndic
+                - salt-cloud
+              runcmd:
+                - [ systemctl, enable, salt-master.service ]
+                - [ systemctl, start, salt-master.service ]
+
+  minion_cloud_config:
+    type: cloudify.nodes.CloudConfig
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            cloud_config:
+              users: *cloud_config_users
+              write_files: *cloud_config_repo
+              packages: *cloud_config_packages
+              runcmd:
+                - [ systemctl, enable, salt-minion.service ]
+                - [ systemctl, start, salt-minion.service ]
