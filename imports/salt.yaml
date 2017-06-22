@@ -7,21 +7,32 @@ relationships:
 
   cloudify.relationships.Salt.connected_to:
     derived_from: cloudify.relationships.depends_on
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        postconfigure: scripts/salt/minion/postconfigure.py
     target_interfaces:
       cloudify.interfaces.relationship_lifecycle:
-        establish: scripts/salt/establish.py
+        preconfigure: scripts/salt/minion/preconfigure.py
+        establish: scripts/salt/minion/establish.py
 
 node_types:
 
-  cloudify.nodes.Salt.Master:
+  cloudify.nodes.Salt:
     derived_from: cloudify.nodes.Root
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: scripts/salt/create.py
+
+  cloudify.nodes.Salt.Master:
+    derived_from: cloudify.nodes.Salt
     properties:
       use_external_resource:
         default: false
     interfaces:
       cloudify.interfaces.lifecycle:
         configure:
-          implementation: scripts/salt/configure_master.py
+          implementation: scripts/salt/master/configure.py
 
 node_templates:
 
@@ -29,19 +40,33 @@ node_templates:
     type: cloudify.nodes.Salt.Master
     properties:
       use_external_resource: { get_input: existing_salt_master }
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure:
+          implementation: scripts/salt/master/configure.py
+          inputs:
+            resource_config:
+              'interface': { get_attribute: [ master_host, ip ] }
+              'file_roots':
+                'base':
+                - /salt/states/base
+              'pillar_roots':
+                'base':
+                - /salt/pillars/base
     relationships:
       - type: cloudify.relationships.contained_in
         target: master_host
 
   salt_minion:
-    type: cloudify.nodes.Root
+    type: cloudify.nodes.Salt
     interfaces:
       cloudify.interfaces.lifecycle:
         configure:
-          implementation: scripts/salt/configure_minion.py
+          implementation: scripts/salt/minion/configure.py
           inputs:
-            interface: { get_attribute: [ master_host, ip ] }
-            master_finger: { get_attribute: [ salt_master, master_finger ] }
+            resource_config:
+              'master': { get_attribute: [ master_host, ip ] }
+              'master_finger': { get_attribute: [ salt_master, master_finger ] }
     relationships:
       - type: cloudify.relationships.contained_in
         target: minion_host
