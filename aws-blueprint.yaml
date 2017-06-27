@@ -4,7 +4,7 @@ description: >
   This blueprint creates a Salt Master and Salt Minion on Centos 7 VMs in a Cloudify Management Environment.
 
 imports:
-  - http://www.getcloudify.org/spec/cloudify/4.0.1/types.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-manager/4.1/resources/rest-service/cloudify/types/types.yaml
   - http://getcloudify.org.s3.amazonaws.com/spec/aws-plugin/1.4.11/plugin.yaml
   - imports/cloud-config.yaml
   - imports/groups-policies-aws-openstack.yaml
@@ -41,13 +41,11 @@ node_templates:
     type: cloudify.aws.nodes.Instance
     properties:
       agent_config:
-        install_method: remote
+        install_method: none
         user: { get_input: agent_user }
         port: 22
         key: { get_secret: agent_key_private }
       aws_config: *aws_config
-      use_external_resource: { get_input: existing_salt_master }
-      resource_id: { get_input: existing_salt_master }
       image_id: { get_input: ami }
       instance_type: { get_input: instance_type }
     interfaces:
