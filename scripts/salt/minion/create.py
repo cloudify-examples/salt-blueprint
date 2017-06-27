@@ -35,7 +35,7 @@ def execute_command(_command, log_output=True):
         ctx.logger.error('Running `{0}` returns error.'.format(_command))
         return False
 
-    return output
+    return process, output
 
 
 if __name__ == '__main__':
@@ -44,19 +44,14 @@ if __name__ == '__main__':
         'Verifying that Salt service is installed and running.')
 
     # Check if Salt is running
-    salt_minion_running = False
-    salt_master_running = False
-    ps_output = execute_command('ps -ef', log_output=False)
+    salt_running = False
+    salt_minion_service, command_output = \
+        execute_command('sudo systemctl status salt-minion.service', log_output=False)
 
-    for line in ps_output.split('\n'):
-        if '/usr/bin/salt-master' in line:
-            salt_master_running = True
-        if '/usr/bin/salt-minion' in line:
-            salt_minion_running = True
-
-    if salt_master_running:
-        ctx.logger.info('Salt master service is running.')
-    elif salt_minion_running:
-        ctx.logger.info('Salt minion service is running.')
+    if salt_minion_service.returncode == 0 and command_output != -1:
+        ctx.logger.debug('Salt installed and running.')
+    elif salt_minion_service.returncode == 3:
+        raise RecoverableError('Salt is installed, but is not running.')
     else:
-        raise RecoverableError('Salt is not yet running.')
+        raise RecoverableError(
+            'Salt is not installed and not running: {0}'.format(command_output))
