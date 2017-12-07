@@ -4,8 +4,10 @@ description: >
   This blueprint creates a Salt Master and Salt Minion on Centos 7 VMs in a Cloudify Management Environment.
 
 imports:
-  - http://www.getcloudify.org/spec/cloudify/4.0.1/types.yaml
-  - http://www.getcloudify.org/spec/openstack-plugin/2.0.1/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-manager/4.2/resources/rest-service/cloudify/types/types.yaml
+  - http://www.getcloudify.org/spec/openstack-plugin/2.4.1.1/plugin.yaml
+  - http://www.getcloudify.org/spec/utilities-plugin/1.4.1/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.4.1/cloudify_cloudinit/types.yaml
   - imports/cloud-config.yaml
   - imports/groups-policies-aws-openstack.yaml
   - imports/salt.yaml
@@ -14,9 +16,11 @@ inputs:
 
   image:
     description: Image to be used when launching agent VMs
+    default: { get_secret: centos_core_image }
 
   flavor:
     description: Flavor of the agent VMs
+    default: { get_secret: large_image_flavor }
 
   agent_user:
     description: >
@@ -40,7 +44,7 @@ node_templates:
       openstack_config: *openstack_config
       agent_config:
           user: { get_input: agent_user }
-          install_method: remote
+          install_method: none
           port: 22
           key: { get_secret: agent_key_private }
       server:

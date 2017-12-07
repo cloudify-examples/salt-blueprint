@@ -1,32 +1,8 @@
-node_types:
-
-  cloudify.nodes.CloudConfig:
-    derived_from: cloudify.nodes.Root
-    properties:
-      encode_base64:
-        default: false
-      resource_config:
-        required: False
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        create:
-          implementation: scripts/cloud_config/create.py
-          executor: central_deployment_agent
-        configure:
-          implementation: scripts/cloud_config/configure.py
-          executor: central_deployment_agent
-          inputs:
-            resource_config:
-              default:
-                preserve_hostname: false
-                manage_etc_hosts: true
-                hostname: { get_attribute: [ SELF, node_instance_id ] }
-                fqdn: { get_attribute: [ SELF, node_instance_id ] }
 
 node_templates:
 
   master_cloud_config:
-    type: cloudify.nodes.CloudConfig
+    type: cloudify.nodes.CloudInit.CloudConfig
     properties:
       resource_config:
         users: &cloud_config_users
@@ -60,7 +36,7 @@ node_templates:
           - [ systemctl, start, salt-master.service ]
 
   minion_cloud_config:
-    type: cloudify.nodes.CloudConfig
+    type: cloudify.nodes.CloudInit.CloudConfig
     properties:
       resource_config:
         users: *cloud_config_users

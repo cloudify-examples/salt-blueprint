@@ -1,7 +1,5 @@
-inputs:
-
-  existing_salt_master:
-    default: false
+imports:
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-fabric-plugin/1.5/plugin.yaml
 
 relationships:
 
@@ -12,8 +10,27 @@ relationships:
         postconfigure: scripts/salt/minion/postconfigure.py
     target_interfaces:
       cloudify.interfaces.relationship_lifecycle:
-        preconfigure: scripts/salt/minion/preconfigure.py
-        establish: scripts/salt/minion/establish.py
+        preconfigure:
+          implementation: fabric.fabric_plugin.tasks.run_task
+          inputs:
+            tasks_file:
+              default: tasks/salt/master/tasks.py
+            task_name:
+              default: preconfigure
+            fabric_env:
+              default: &master_fabric_env
+                host_string: { get_attribute: [ master_host, ip ] }
+                user: { get_input: agent_user }
+                key: { get_secret: agent_key_private }
+        establish:
+          implementation: fabric.fabric_plugin.tasks.run_task
+          inputs:
+            tasks_file:
+              default: tasks/salt/master/tasks.py
+            task_name:
+              default: establish
+            fabric_env:
+              default: *master_fabric_env
 
 node_types:
 
@@ -22,7 +39,7 @@ node_types:
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
-          implementation: scripts/salt/create.py
+          implementation: scripts/salt/minion/create.py
 
   cloudify.nodes.Salt.Master:
     derived_from: cloudify.nodes.Salt
@@ -31,30 +48,42 @@ node_types:
         default: false
     interfaces:
       cloudify.interfaces.lifecycle:
+        create:
+          implementation: fabric.fabric_plugin.tasks.run_task
+          inputs:
+            tasks_file:
+              default: tasks/salt/master/tasks.py
+            task_name:
+              default: create
+            fabric_env:
+              default: *master_fabric_env
         configure:
-          implementation: scripts/salt/master/configure.py
+          implementation: fabric.fabric_plugin.tasks.run_task
+          inputs:
+            tasks_file:
+              default: tasks/salt/master/tasks.py
+            task_name:
+              default: configure
+            task_properties:
+              default:
+                resource_config:
+                  interface: { get_attribute: [ master_host, ip ] }
+                  file_roots:
+                    'base':
+                    - /salt/states/base
+                    - /salt/formulas
+                  pillar_roots:
+                    'base':
+                    - /salt/pillars/base
+            fabric_env:
+              default: *master_fabric_env
 
 node_templates:
 
   salt_master:
     type: cloudify.nodes.Salt.Master
-    properties:
-      use_external_resource: { get_input: existing_salt_master }
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        configure:
-          implementation: scripts/salt/master/configure.py
-          inputs:
-            resource_config:
-              'interface': { get_attribute: [ master_host, ip ] }
-              'file_roots':
-                'base':
-                - /salt/states/base
-              'pillar_roots':
-                'base':
-                - /salt/pillars/base
     relationships:
-      - type: cloudify.relationships.contained_in
+      - type: cloudify.relationships.depends_on
         target: master_host
 
   salt_minion:
@@ -65,8 +94,8 @@ node_templates:
           implementation: scripts/salt/minion/configure.py
           inputs:
             resource_config:
-              'master': { get_attribute: [ master_host, ip ] }
-              'master_finger': { get_attribute: [ salt_master, master_finger ] }
+              master: { get_attribute: [ master_host, ip ] }
+              master_finger: { get_attribute: [ salt_master, master_finger ] }
     relationships:
       - type: cloudify.relationships.contained_in
         target: minion_host

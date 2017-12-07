@@ -1,3 +1,8 @@
+inputs:
+
+  minion_count:
+    default: 2
+
 groups:
 
   minion_group:
@@ -10,5 +15,5 @@ policies:
   minion_scaling_policy:
     type: cloudify.policies.scaling
     properties:
-      default_instances:  2
+      default_instances:  { get_input: minion_count }
     targets: [minion_group]
