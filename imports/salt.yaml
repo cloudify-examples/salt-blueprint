@@ -1,5 +1,5 @@
 imports:
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-fabric-plugin/1.4.2/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-fabric-plugin/1.5/plugin.yaml
 
 relationships:
 

@@ -4,8 +4,10 @@ description: >
   This blueprint creates a Salt Master and Salt Minion on Centos 7 VMs in a Cloudify Management Environment.
 
 imports:
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-manager/4.1/resources/rest-service/cloudify/types/types.yaml
-  - http://getcloudify.org.s3.amazonaws.com/spec/aws-plugin/1.4.11/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-manager/4.2/resources/rest-service/cloudify/types/types.yaml
+  - https://github.com/cloudify-cosmo/cloudify-aws-plugin/releases/download/1.5.1.2/plugin.yaml
+  - http://www.getcloudify.org/spec/utilities-plugin/1.4.1/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.4.1/cloudify_cloudinit/types.yaml
   - imports/cloud-config.yaml
   - imports/groups-policies-aws-openstack.yaml
   - imports/salt.yaml
@@ -15,7 +17,7 @@ inputs:
   ami:
     description: >
       An AWS AMI. Tested with a Centos 7.0 image.
-    default: ami-72667b65
+    default: { get_secret: centos_core_image }
 
   instance_type:
     description: >
