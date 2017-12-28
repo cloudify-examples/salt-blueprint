@@ -21,7 +21,7 @@ relationships:
               default: &master_fabric_env
                 host_string: { get_attribute: [ master_host, ip ] }
                 user: { get_input: agent_user }
-                key: { get_secret: agent_key_private }
+                key: { get_input: agent_key_private }
         establish:
           implementation: fabric.fabric_plugin.tasks.run_task
           inputs:
