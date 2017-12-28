@@ -165,6 +165,9 @@ node_templates:
       - type: cloudify.openstack.port_connected_to_security_group
         target: security_group
 
+  minion_tier:
+    type: cloudify.nodes.Root
+
   security_group:
     type: cloudify.openstack.nodes.SecurityGroup
     properties:
@@ -226,19 +229,16 @@ node_templates:
       - target: external_network
         type: cloudify.relationships.connected_to
 
-  external_network:
-    type: cloudify.openstack.nodes.Network
-    properties:
-      openstack_config: *openstack_config
-      use_external_resource: true
-      resource_id: { get_input: external_network_name }
-
-  minion_tier:
-    type: cloudify.nodes.Root
-
   public_ip:
     type: cloudify.openstack.nodes.FloatingIP
     properties:
       openstack_config: *openstack_config
       floatingip:
         floating_network_name: { get_property: [ external_network, resource_id ] }
+
+  external_network:
+    type: cloudify.openstack.nodes.Network
+    properties:
+      openstack_config: *openstack_config
+      use_external_resource: true
+      resource_id: { get_input: external_network_name }
