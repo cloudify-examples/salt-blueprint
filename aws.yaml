@@ -92,6 +92,8 @@ node_templates:
         target: public_ip
       - type: cloudify.relationships.depends_on
         target: master_cloud_config
+      - type: cloudify.relationships.depends_on
+        target: centos_core_ami
 
   minion_host:
     type: cloudify.aws.nodes.Instance
@@ -119,6 +121,25 @@ node_templates:
         target: minion_nic
       - type: cloudify.relationships.depends_on
         target: minion_cloud_config
+      - type: cloudify.relationships.depends_on
+        target: centos_core_ami
+
+  centos_core_ami:
+    type: cloudify.nodes.aws.ec2.Image
+    properties:
+      resource_config:
+        kwargs:
+          Filters:
+          - Name: name
+            Values:
+            - 'CentOS 7.3.1611 x86_64 with cloud-init (HVM)'
+          - Name: owner-id
+            Values:
+            - '057448758665'
+      client_config: *client_config
+    relationships:
+    - type: cloudify.relationships.contained_in
+      target: aws
 
   public_ip:
     type: cloudify.nodes.aws.ec2.ElasticIP
