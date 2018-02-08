@@ -1,6 +1,3 @@
-imports:
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-fabric-plugin/1.5/plugin.yaml
-
 relationships:
 
   cloudify.relationships.Salt.connected_to:
@@ -19,7 +16,7 @@ relationships:
               default: preconfigure
             fabric_env:
               default: &master_fabric_env
-                host_string: { get_attribute: [ master_host, ip ] }
+                host_string: { get_input: master_ip }
                 user: { get_input: agent_user }
                 key: { get_input: agent_key_private }
         establish:
