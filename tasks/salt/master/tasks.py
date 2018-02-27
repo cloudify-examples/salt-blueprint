@@ -1,5 +1,8 @@
 import collections
 from tempfile import NamedTemporaryFile
+from fabric.api import put, sudo
+from cloudify import ctx
+from cloudify.exceptions import RecoverableError
 try:
     import yaml
 except ImportError:
@@ -11,10 +14,6 @@ finally:
         from yaml import CDumper as Dumper
     except ImportError:
         from yaml import Dumper
-
-from fabric.api import put, sudo
-from cloudify import ctx
-from cloudify.exceptions import RecoverableError
 
 
 def _convert_yaml(_config):
