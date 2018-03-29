@@ -4,10 +4,10 @@ description: >
   This blueprint creates a Salt Master and Salt Minion on Centos 7 VMs in a Cloudify Management Environment.
 
 imports:
-  - http://www.getcloudify.org/spec/cloudify/4.2/types.yaml
-  - http://www.getcloudify.org/spec/openstack-plugin/2.6.0/plugin.yaml
-  - http://www.getcloudify.org/spec/utilities-plugin/1.4.5/plugin.yaml
-  - http://www.getcloudify.org/spec/fabric-plugin/1.5.1/plugin.yaml
+  - http://www.getcloudify.org/spec/cloudify/4.3/types.yaml
+  - plugin:cloudify-openstack-plugin
+  - plugin:cloudify-utilities-plugin
+  - plugin:cloudify-fabric-plugin
   - imports/cloud-config.yaml
   - imports/groups-policies-aws-openstack.yaml
   - imports/salt.yaml
@@ -31,9 +31,9 @@ inputs:
 
   image:
     description: >
-      An Openstack Image ID. Tested with a Ubuntu 14.04 image.
+      An Openstack Image ID. Tested with a Centos Core image.
     type: string
-    default: { get_secret: ubuntu_trusty_image }
+    default: { get_secret: centos_core_image }
 
   flavor:
     description: >
@@ -73,16 +73,9 @@ node_templates:
         key: { get_input: agent_key_private }
       server:
         key_name: ''
-        image: ''
-        flavor: ''
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        create:
-          inputs:
-            args:
-              image: { get_input: image }
-              flavor: { get_input: flavor }
-              userdata: { get_attribute: [ master_cloud_config, cloud_config ] }
+        image: { get_input: image }
+        flavor: { get_input: flavor }
+        userdata: { get_attribute: [ master_cloud_config, cloud_config ] }
     relationships:
       - type: cloudify.openstack.server_connected_to_port
         target: master_nic
@@ -101,8 +94,9 @@ node_templates:
         key: { get_input: agent_key_private }
       server:
         key_name: ''
-        image: ''
-        flavor: ''
+        image: { get_input: image }
+        flavor: { get_input: flavor }
+        userdata: { get_attribute: [ minion_cloud_config, cloud_config ] }
     relationships:
       - type: cloudify.relationships.contained_in
         target: minion_tier
@@ -110,14 +104,6 @@ node_templates:
         target: minion_nic
       - type: cloudify.relationships.depends_on
         target: minion_cloud_config
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        create:
-          inputs:
-            args:
-              image: { get_input: image }
-              flavor: { get_input: flavor }
-              userdata: { get_attribute: [ minion_cloud_config, cloud_config ] }
 
   master_nic:
     type: cloudify.openstack.nodes.Port
